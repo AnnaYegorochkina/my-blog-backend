@@ -1,72 +1,59 @@
 import express from 'express';
-
-let articlesInfo = [
-    {
-        name: 'learn-react',
-        upvotes: 0,
-        comments: [],
-    },
-    {
-        name: 'learn-node',
-        upvotes: 0,
-        comments: [],
-    },
-    {
-        name: 'learn-mongodb',
-        upvotes: 0,
-        comments: [],
-    },
-];
+import { db, connectToDB } from './db.js';
 
 const app = express();
 app.use(express.json()); // parse body when receive json body
 
-// app.get('/hello', (request, response) => {
-//     response.send('Hello!');
-// });
-
-// app.post('/hello', (request, response) => {
-//     console.log(request.body);
-//     response.send(`Hello ${request.body.name}!`);
-// });
-
-// app.get('/hello/:name/goodbye/:otherName', (request, response) => {
-//     const { name, otherName } = request.params;
-//     response.send(`Hello ${name}, goodbye ${otherName}!`);
-// });
-
-// app.get('/hello/:name/goodbye/:otherName', (request, response) => {
-//     const { name, otherName } = request.params;
-//     response.send(`Hello ${name}, goodbye ${otherName}!`);
-// });
-
-app.put('/api/articles/:name/upvote', (req, res) => {
+app.get('/api/articles/:name', async (req, res) => {
     const { name } = req.params;
-    const article = articlesInfo.find(a => a.name === name);
+
+    const article = await db.collection('articles').findOne({ name });
 
     if (article) {
-        article.upvotes += 1;
+        res.json(article); // not res.send()!
+    } else {
+        res.sendStatus(404).send('Article not found!'); 
+    }
+});
+
+app.put('/api/articles/:name/upvote', async (req, res) => {
+    const { name } = req.params;
+
+    await db.collection('articles').updateOne({ name }, {
+        $inc: { upvotes: 1 }, // increment by one
+        // $set: { upvotes: 10 }, // set to 10
+    });
+
+    const article = await db.collection('articles').findOne({ name });
+
+    if (article) {
         res.send(`The ${name} article has ${article.upvotes} upvotes!`);
     } else {
         res.send(`The ${name} article doen\'t exist!`);
     }
 });
 
-app.post('/api/articles/:name/comment', (req, res) => {
+app.post('/api/articles/:name/comment', async (req, res) => {
     const { name } = req.params;
     const { postedBy, text } = req.body;
-    
-    const article = articlesInfo.find(a => a.name === name);
+
+    await db.collection('articles').updateOne({ name }, {
+        $push: { comments: { postedBy, text } }, // add new item in array
+    });
+
+    const article = await db.collection('articles').findOne({ name });
 
     if (article) {
-        article.comments.push({ postedBy, text });
         res.send(article.comments);
     } else {
         res.send(`The ${name} article doen\'t exist!`);
     }
 });
  
+connectToDB(() => {
+    console.log('Successfully connected to the Data Base!');
 
-app.listen(8000, () => {
-    console.log('Server is listening on port 8000');
+    app.listen(8000, () => { // server will not start till we connect to the data base
+        console.log('Server is listening on port 8000');
+    });
 });
